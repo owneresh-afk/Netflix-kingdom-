@@ -4,56 +4,54 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
 from src import database as db
-from src.config import REFS_FOR_REWARD, BOT_NAME
+from src.config import REFS_FOR_REWARD
 from src.keyboards import back_main_keyboard
 from src.utils.helpers import medal
 
 
-HOW_IT_WORKS_TEXT = """
-🎬 *NETFLIX KINGDOM — How It Works*
-━━━━━━━━━━━━━━━━━━━━━━
+def _md(text: str) -> str:
+    """Escape user-provided text so it's safe inside MarkdownV1 strings."""
+    return str(text).replace("_", "\\_").replace("*", "\\*").replace("`", "\\`").replace("[", "\\[")
 
-*Step 1:* Join our official channel(s) ✅
-*Step 2:* Get your unique referral link 🔗
-*Step 3:* Share it with your friends 👥
-*Step 4:* When *2 friends* join → You earn *1 Netflix Account!* 🎉
 
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 *Referral Formula:*
-> 2 Referrals = 1 Netflix Account Cookie
+HOW_IT_WORKS_TEXT = (
+    "🎬 *NETFLIX KINGDOM — How It Works*\n"
+    "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "*Step 1:* Join our official channel(s) ✅\n"
+    "*Step 2:* Get your unique referral link 🔗\n"
+    "*Step 3:* Share it with your friends 👥\n"
+    "*Step 4:* When *2 friends* join → You earn *1 Netflix Account!* 🎉\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━━\n"
+    "🎯 *Referral Formula:*\n"
+    "2 Referrals = 1 Netflix Account Cookie\n\n"
+    "📌 *What is a Cookie?*\n"
+    "A Netflix account cookie lets you log in without a password.\n"
+    "Use it with any compatible cookie manager bot.\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━━\n"
+    "⚠️ *Rules:*\n"
+    "• Each account is given to *1 person only*\n"
+    "• You have *2 chances* to report not working\n"
+    "• Submit proof after redeeming\n"
+    "• Do not share accounts with others\n"
+    "• Accounts are first-come, first-served\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━━\n"
+    "💡 *Tip:* Share your referral link on social media, groups,\n"
+    "and WhatsApp to earn faster! 🚀"
+)
 
-📌 *What is a Cookie?*
-A Netflix account cookie lets you log in without needing a password. Use it with our bot @tnnetflixx_bot or any compatible cookie manager.
-
-━━━━━━━━━━━━━━━━━━━━━━
-⚠️ *Rules:*
-• Each account is given to *1 person only*
-• You have *2 chances* to report "not working"
-• Submit proof after redeeming
-• Do not share accounts with others
-• Accounts are first-come, first-served
-
-━━━━━━━━━━━━━━━━━━━━━━
-💡 *Tip:* Share your referral link on social media, groups, and WhatsApp to earn faster! 🚀
-"""
-
-SUPPORT_TEXT = """
-🛠️ *NETFLIX KINGDOM — Support*
-━━━━━━━━━━━━━━━━━━━━━━
-
-Need help? We've got you covered!
-
-📌 *Common Issues:*
-• Account not working → Use the "Not Working" button
-• Referral not counted → Ask your friend to start the bot via your link
-• Balance wrong → Contact admin
-
-━━━━━━━━━━━━━━━━━━━━━━
-📩 *Contact Admin:* @admin
-🌐 *Channel:* Join via /start
-
-━━━━━━━━━━━━━━━━━━━━━━
-"""
+SUPPORT_TEXT = (
+    "🛠️ *NETFLIX KINGDOM — Support*\n"
+    "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "Need help? We've got you covered!\n\n"
+    "📌 *Common Issues:*\n"
+    "• Account not working → tap the ❌ Not Working button\n"
+    "• Referral not counted → ask your friend to open the bot via your link\n"
+    "• Balance wrong → contact the admin\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━━\n"
+    "📩 *Contact Admin:* @NetflixKingdomSupport\n"
+    "🌐 *Join via:* /start\n"
+    "━━━━━━━━━━━━━━━━━━━━━━"
+)
 
 
 async def profile_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -71,17 +69,19 @@ async def profile_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     last_active = user_data["last_active"][:10] if user_data["last_active"] else "N/A"
     refs_to_next = REFS_FOR_REWARD - (refs % REFS_FOR_REWARD) if refs % REFS_FOR_REWARD != 0 else REFS_FOR_REWARD
 
-    # Progress bar
     filled = refs % REFS_FOR_REWARD
     bar_filled = int(10 * filled / REFS_FOR_REWARD)
     bar = "█" * bar_filled + "░" * (10 - bar_filled)
 
+    safe_name = _md(user.full_name)
+    username_display = f"@{_md(user.username)}" if user.username else "N/A"
+
     text = (
         f"👤 *MY PROFILE*\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🏷️ *Name:* {user.full_name}\n"
+        f"🏷️ *Name:* {safe_name}\n"
         f"🆔 *ID:* `{user.id}`\n"
-        f"📛 *Username:* @{user.username or 'N/A'}\n"
+        f"📛 *Username:* {username_display}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🔗 *Total Referrals:* `{refs}`\n"
         f"💰 *Points:* `{points}`\n"
@@ -95,11 +95,7 @@ async def profile_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"⏱️ *Last Active:* {last_active}\n"
     )
 
-    await query.edit_message_text(
-        text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=back_main_keyboard()
-    )
+    await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=back_main_keyboard())
 
 
 async def balance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -129,11 +125,7 @@ async def balance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💡 Tap *Refer Friends* to get your link!"
     )
 
-    await query.edit_message_text(
-        text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=back_main_keyboard()
-    )
+    await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=back_main_keyboard())
 
 
 async def refer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -142,6 +134,8 @@ async def refer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     bot_info = await context.bot.get_me()
     ref_link = f"https://t.me/{bot_info.username}?start=ref_{user.id}"
+    share_url = f"https://t.me/share/url?url={ref_link}&text=%F0%9F%8E%AC+Join+Netflix+Kingdom+and+earn+FREE+Netflix+accounts%21+Just+refer+2+friends."
+
     user_data = await db.get_user(user.id)
     refs = user_data["referral_count"] if user_data else 0
 
@@ -155,13 +149,12 @@ async def refer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• Total Referrals: `{refs}`\n"
         f"• Accounts Earned: `{refs // REFS_FOR_REWARD}`\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📣 *Share this message:*\n"
-        f"_🎬 Join Netflix Kingdom and get FREE Netflix accounts! "
-        f"Just refer 2 friends. Click here: {ref_link}_"
+        f"📣 Share on WhatsApp, groups & social media\n"
+        f"to earn faster! 🚀"
     )
 
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤 Share Link", url=f"https://t.me/share/url?url={ref_link}&text=🎬+Join+Netflix+Kingdom+and+earn+FREE+Netflix+accounts%21")],
+        [InlineKeyboardButton("📤 Share My Referral Link", url=share_url)],
         [InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")],
     ])
 
@@ -177,22 +170,21 @@ async def leaderboard_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
     lines = ["🏆 *LEADERBOARD — TOP REFERRERS*", "━━━━━━━━━━━━━━━━━━━━━━", ""]
     for i, u in enumerate(top_users, 1):
-        name = u["full_name"] or "Unknown"
+        name = _md((u["full_name"] or "Unknown")[:20])
         refs = u["referral_count"]
         m = medal(i)
-        lines.append(f"{m} *{name}*\n   🔗 {refs} referrals | 🎬 {refs // REFS_FOR_REWARD} accounts earned")
+        lines.append(f"{m} *{name}*\n   🔗 {refs} referrals | 🎬 {refs // REFS_FOR_REWARD} earned")
         lines.append("")
 
     if not top_users:
         lines.append("_No users yet. Be the first!_")
 
-    # Show current user's rank
     if current_user:
         all_users = await db.get_leaderboard(1000)
         rank = next((i + 1 for i, u in enumerate(all_users) if u["user_id"] == current_user["user_id"]), None)
         if rank:
             lines.append("━━━━━━━━━━━━━━━━━━━━━━")
-            lines.append(f"📍 *Your Rank: #{rank}*\n🔗 Your Referrals: `{current_user['referral_count']}`")
+            lines.append(f"📍 *Your Rank: #{rank}* — 🔗 `{current_user['referral_count']}` referrals")
 
     await query.edit_message_text(
         "\n".join(lines),
@@ -219,7 +211,7 @@ async def stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📢 *Active Channels:* `{len(channels)}`\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🤖 *Bot:* Netflix Kingdom\n"
-        f"⚡ *Status:* Online\n"
+        f"⚡ *Status:* Online ✅\n"
     )
 
     await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=back_main_keyboard())
