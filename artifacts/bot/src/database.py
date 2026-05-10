@@ -60,7 +60,17 @@ async def init_db():
                 start_time TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        # Insert start time if not exists
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS redeem_codes (
+                code_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE NOT NULL,
+                points INTEGER NOT NULL,
+                used_by INTEGER DEFAULT NULL,
+                used_at TEXT DEFAULT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                is_active INTEGER DEFAULT 1
+            )
+        """)
         count = await db.execute("SELECT COUNT(*) FROM bot_stats")
         row = await count.fetchone()
         if row[0] == 0:
@@ -135,10 +145,7 @@ async def reset_all_verifications():
 
 async def add_account(file_id: str, file_name: str):
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-            INSERT INTO accounts (file_id, file_name)
-            VALUES (?, ?)
-        """, (file_id, file_name))
+        await db.execute("INSERT INTO accounts (file_id, file_name) VALUES (?, ?)", (file_id, file_name))
         await db.commit()
 
 async def get_available_account():
@@ -159,26 +166,16 @@ async def get_available_count():
 
 async def assign_account(account_id: int, user_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-            UPDATE accounts SET given_to = ?, given_at = ?
-            WHERE account_id = ?
-        """, (user_id, datetime.now().isoformat(), account_id))
+        await db.execute(
+            "UPDATE accounts SET given_to = ?, given_at = ? WHERE account_id = ?",
+            (user_id, datetime.now().isoformat(), account_id)
+        )
         await db.commit()
 
 async def trash_account(account_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE accounts SET is_trashed = 1 WHERE account_id = ?", (account_id,))
         await db.commit()
-
-async def get_next_account_for_replacement(exclude_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute("""
-            SELECT * FROM accounts
-            WHERE given_to IS NULL AND is_trashed = 0 AND account_id != ?
-            ORDER BY account_id ASC LIMIT 1
-        """, (exclude_id,))
-        return await cursor.fetchone()
 
 async def get_total_redeemed():
     async with aiosqlite.connect(DB_PATH) as db:
@@ -190,10 +187,10 @@ async def get_total_redeemed():
 
 async def create_redemption(user_id: int, account_id: int) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("""
-            INSERT INTO redemptions (user_id, account_id)
-            VALUES (?, ?)
-        """, (user_id, account_id))
+        cursor = await db.execute(
+            "INSERT INTO redemptions (user_id, account_id) VALUES (?, ?)",
+            (user_id, account_id)
+        )
         await db.commit()
         return cursor.lastrowid
 
@@ -205,10 +202,10 @@ async def get_redemption(redemption_id: int):
 
 async def increment_not_working(redemption_id: int) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-            UPDATE redemptions SET not_working_count = not_working_count + 1
-            WHERE redemption_id = ?
-        """, (redemption_id,))
+        await db.execute(
+            "UPDATE redemptions SET not_working_count = not_working_count + 1 WHERE redemption_id = ?",
+            (redemption_id,)
+        )
         await db.commit()
         cursor = await db.execute("SELECT not_working_count FROM redemptions WHERE redemption_id = ?", (redemption_id,))
         row = await cursor.fetchone()
@@ -227,10 +224,10 @@ async def update_redemption(redemption_id: int, **kwargs):
 
 async def add_channel(chat_id: str, name: str, link: str):
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-            INSERT INTO channels (chat_id, channel_name, channel_link)
-            VALUES (?, ?, ?)
-        """, (chat_id, name, link))
+        await db.execute(
+            "INSERT INTO channels (chat_id, channel_name, channel_link) VALUES (?, ?, ?)",
+            (chat_id, name, link)
+        )
         await db.commit()
 
 async def get_active_channels():
@@ -243,6 +240,49 @@ async def remove_channel(channel_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE channels SET is_active = 0 WHERE channel_id = ?", (channel_id,))
         await db.commit()
+
+# ── REDEEM CODE FUNCTIONS ──────────────────────────────────────
+
+async def create_redeem_code(code: str, points: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO redeem_codes (code, points) VALUES (?, ?)",
+            (code, points)
+        )
+        await db.commit()
+
+async def get_redeem_code(code: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM redeem_codes WHERE code = ? AND is_active = 1 AND used_by IS NULL",
+            (code.upper(),)
+        )
+        return await cursor.fetchone()
+
+async def use_redeem_code(code: str, user_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE redeem_codes SET used_by = ?, used_at = ?, is_active = 0 WHERE code = ?",
+            (user_id, datetime.now().isoformat(), code.upper())
+        )
+        await db.commit()
+
+async def get_all_codes(limit: int = 50):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM redeem_codes ORDER BY created_at DESC LIMIT ?",
+            (limit,)
+        )
+        return await cursor.fetchall()
+
+async def get_code_stats():
+    async with aiosqlite.connect(DB_PATH) as db:
+        total = await (await db.execute("SELECT COUNT(*) FROM redeem_codes")).fetchone()
+        active = await (await db.execute("SELECT COUNT(*) FROM redeem_codes WHERE is_active = 1 AND used_by IS NULL")).fetchone()
+        used = await (await db.execute("SELECT COUNT(*) FROM redeem_codes WHERE used_by IS NOT NULL")).fetchone()
+        return {"total": total[0], "active": active[0], "used": used[0]}
 
 # ── STATS FUNCTIONS ──────────────────────────────────────────
 

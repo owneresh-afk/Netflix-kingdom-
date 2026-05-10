@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 import sys
 
 from telegram import Update
@@ -13,7 +12,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from src.config import BOT_TOKEN, DB_CHANNEL_ID, ADMIN_IDS
+from src.config import BOT_TOKEN, DB_CHANNEL_ID
 from src import database as db
 from src.handlers.start import start, check_verify_callback
 from src.handlers.menu import (
@@ -34,8 +33,10 @@ from src.handlers.admin import (
     admin_restart_callback, admin_confirm_restart_callback,
     admin_redemptions_callback, admin_top_refs_callback,
     admin_close_callback, admin_back_callback, handle_admin_text,
+    admin_codes_callback, admin_gen_codes_callback, admin_view_codes_callback,
 )
 from src.handlers.db_channel import handle_db_channel_file
+from src.handlers.codes import redeem_code_command
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -46,33 +47,35 @@ logger = logging.getLogger(__name__)
 
 
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Route text messages to the right handler."""
-    # Check if awaiting proof
+    """Route all private text messages."""
     if context.user_data.get("awaiting_proof"):
         await handle_proof_photo(update, context)
         return
-
-    # Check admin actions
     if await handle_admin_text(update, context):
         return
 
 
 async def handle_photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle photo messages (for proof submission)."""
+    """Handle photos/documents sent as proof."""
     if context.user_data.get("awaiting_proof"):
         await handle_proof_photo(update, context)
 
 
 async def handle_channel_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle documents in channels (DB channel file uploads)."""
+    """Handle files posted in DB channel."""
     await handle_db_channel_file(update, context)
 
 
+async def notify_me_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Placeholder: user wants to be notified when accounts are available."""
+    query = update.callback_query
+    await query.answer("🔔 You'll be notified when accounts become available!", show_alert=True)
+
+
 async def post_init(application: Application):
-    """Run after bot starts."""
     await db.init_db()
     logger.info("✅ Database initialized")
-    logger.info("🎬 Netflix Kingdom Bot is running!")
+    logger.info("🎬 Netflix Kingdom Bot is LIVE!")
 
 
 def main():
@@ -82,72 +85,79 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
 
-    # ── COMMANDS ──────────────────────────────────────────────────────
+    # ── COMMANDS ─────────────────────────────────────────────────
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_command))
+    app.add_handler(CommandHandler("redeem", redeem_code_command))
 
-    # ── CALLBACK QUERIES ─────────────────────────────────────────────
+    # ── CALLBACK QUERIES ─────────────────────────────────────────
 
     # Verification
     app.add_handler(CallbackQueryHandler(check_verify_callback, pattern="^check_verify$"))
 
-    # Main menu items
-    app.add_handler(CallbackQueryHandler(main_menu_callback, pattern="^main_menu$"))
+    # Main menu
+    app.add_handler(CallbackQueryHandler(main_menu_callback,    pattern="^main_menu$"))
     app.add_handler(CallbackQueryHandler(refresh_menu_callback, pattern="^refresh_menu$"))
-    app.add_handler(CallbackQueryHandler(profile_callback, pattern="^profile$"))
-    app.add_handler(CallbackQueryHandler(balance_callback, pattern="^balance$"))
-    app.add_handler(CallbackQueryHandler(refer_callback, pattern="^refer$"))
-    app.add_handler(CallbackQueryHandler(leaderboard_callback, pattern="^leaderboard$"))
-    app.add_handler(CallbackQueryHandler(stats_callback, pattern="^stats$"))
+    app.add_handler(CallbackQueryHandler(profile_callback,      pattern="^profile$"))
+    app.add_handler(CallbackQueryHandler(balance_callback,      pattern="^balance$"))
+    app.add_handler(CallbackQueryHandler(refer_callback,        pattern="^refer$"))
+    app.add_handler(CallbackQueryHandler(leaderboard_callback,  pattern="^leaderboard$"))
+    app.add_handler(CallbackQueryHandler(stats_callback,        pattern="^stats$"))
     app.add_handler(CallbackQueryHandler(how_it_works_callback, pattern="^how_it_works$"))
-    app.add_handler(CallbackQueryHandler(support_callback, pattern="^support$"))
+    app.add_handler(CallbackQueryHandler(support_callback,      pattern="^support$"))
 
     # Redeem flow
-    app.add_handler(CallbackQueryHandler(redeem_callback, pattern="^redeem$"))
-    app.add_handler(CallbackQueryHandler(do_redeem_callback, pattern="^do_redeem$"))
-    app.add_handler(CallbackQueryHandler(not_working_callback, pattern=r"^not_working_\d+$"))
+    app.add_handler(CallbackQueryHandler(redeem_callback,       pattern="^redeem$"))
+    app.add_handler(CallbackQueryHandler(do_redeem_callback,    pattern="^do_redeem$"))
+    app.add_handler(CallbackQueryHandler(not_working_callback,  pattern=r"^not_working_\d+$"))
     app.add_handler(CallbackQueryHandler(submit_proof_callback, pattern=r"^submit_proof_\d+$"))
+    app.add_handler(CallbackQueryHandler(notify_me_callback,    pattern="^notify_me$"))
 
-    # Admin panel
-    app.add_handler(CallbackQueryHandler(admin_back_callback, pattern="^admin_back$"))
-    app.add_handler(CallbackQueryHandler(admin_close_callback, pattern="^admin_close$"))
-    app.add_handler(CallbackQueryHandler(admin_stats_callback, pattern="^admin_stats$"))
-    app.add_handler(CallbackQueryHandler(admin_users_callback, pattern="^admin_users$"))
-    app.add_handler(CallbackQueryHandler(admin_leaderboard_callback, pattern="^admin_leaderboard$"))
-    app.add_handler(CallbackQueryHandler(admin_accounts_callback, pattern="^admin_accounts$"))
-    app.add_handler(CallbackQueryHandler(admin_add_points_callback, pattern="^admin_add_points$"))
-    app.add_handler(CallbackQueryHandler(admin_ban_callback, pattern="^admin_ban$"))
-    app.add_handler(CallbackQueryHandler(admin_unban_callback, pattern="^admin_unban$"))
-    app.add_handler(CallbackQueryHandler(admin_channels_callback, pattern="^admin_channels$"))
-    app.add_handler(CallbackQueryHandler(admin_add_channel_callback, pattern="^admin_add_channel$"))
-    app.add_handler(CallbackQueryHandler(admin_remove_channel_callback, pattern=r"^admin_remove_channel_\d+$"))
-    app.add_handler(CallbackQueryHandler(admin_broadcast_callback, pattern="^admin_broadcast$"))
-    app.add_handler(CallbackQueryHandler(admin_restart_callback, pattern="^admin_restart$"))
+    # Admin panel — main sections
+    app.add_handler(CallbackQueryHandler(admin_back_callback,            pattern="^admin_back$"))
+    app.add_handler(CallbackQueryHandler(admin_close_callback,           pattern="^admin_close$"))
+    app.add_handler(CallbackQueryHandler(admin_stats_callback,           pattern="^admin_stats$"))
+    app.add_handler(CallbackQueryHandler(admin_users_callback,           pattern="^admin_users$"))
+    app.add_handler(CallbackQueryHandler(admin_leaderboard_callback,     pattern="^admin_leaderboard$"))
+    app.add_handler(CallbackQueryHandler(admin_accounts_callback,        pattern="^admin_accounts$"))
+    app.add_handler(CallbackQueryHandler(admin_add_points_callback,      pattern="^admin_add_points$"))
+    app.add_handler(CallbackQueryHandler(admin_ban_callback,             pattern="^admin_ban$"))
+    app.add_handler(CallbackQueryHandler(admin_unban_callback,           pattern="^admin_unban$"))
+    app.add_handler(CallbackQueryHandler(admin_channels_callback,        pattern="^admin_channels$"))
+    app.add_handler(CallbackQueryHandler(admin_add_channel_callback,     pattern="^admin_add_channel$"))
+    app.add_handler(CallbackQueryHandler(admin_remove_channel_callback,  pattern=r"^admin_remove_channel_\d+$"))
+    app.add_handler(CallbackQueryHandler(admin_broadcast_callback,       pattern="^admin_broadcast$"))
+    app.add_handler(CallbackQueryHandler(admin_restart_callback,         pattern="^admin_restart$"))
     app.add_handler(CallbackQueryHandler(admin_confirm_restart_callback, pattern="^admin_confirm_restart$"))
-    app.add_handler(CallbackQueryHandler(admin_redemptions_callback, pattern="^admin_redemptions$"))
-    app.add_handler(CallbackQueryHandler(admin_top_refs_callback, pattern="^admin_top_refs$"))
+    app.add_handler(CallbackQueryHandler(admin_redemptions_callback,     pattern="^admin_redemptions$"))
+    app.add_handler(CallbackQueryHandler(admin_top_refs_callback,        pattern="^admin_top_refs$"))
 
-    # ── MESSAGE HANDLERS ─────────────────────────────────────────────
+    # Admin — redeem codes
+    app.add_handler(CallbackQueryHandler(admin_codes_callback,      pattern="^admin_codes$"))
+    app.add_handler(CallbackQueryHandler(admin_gen_codes_callback,  pattern="^admin_gen_codes$"))
+    app.add_handler(CallbackQueryHandler(admin_view_codes_callback, pattern="^admin_view_codes$"))
 
-    # Channel document handler (DB channel file uploads)
+    # ── MESSAGE HANDLERS ─────────────────────────────────────────
+
+    # DB channel file uploads
     app.add_handler(MessageHandler(
         filters.Document.ALL & filters.ChatType.CHANNEL,
         handle_channel_document
     ))
 
-    # Text messages (admin inputs, etc.)
+    # Private text (admin inputs + proof)
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE,
         handle_text_message
     ))
 
-    # Photo messages (proof submission)
+    # Photos in private (proof)
     app.add_handler(MessageHandler(
         filters.PHOTO & filters.ChatType.PRIVATE,
         handle_photo_message
     ))
 
-    # Document in private chat (proof as file)
+    # Documents in private (proof as file)
     app.add_handler(MessageHandler(
         filters.Document.ALL & filters.ChatType.PRIVATE,
         handle_photo_message
