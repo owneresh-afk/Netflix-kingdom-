@@ -34,6 +34,7 @@ from src.handlers.admin import (
     admin_redemptions_callback, admin_top_refs_callback,
     admin_close_callback, admin_back_callback, handle_admin_text,
     admin_codes_callback, admin_gen_codes_callback, admin_view_codes_callback,
+    admin_validate_callback,
 )
 from src.handlers.db_channel import handle_db_channel_file
 from src.handlers.codes import redeem_code_command
@@ -78,6 +79,38 @@ async def notify_me_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.answer("🔔 You'll be notified when accounts become available!", show_alert=True)
 
 
+async def validate_accounts_job(context: ContextTypes.DEFAULT_TYPE):
+    """Every 30 min: check every available file_id with Telegram and trash deleted ones."""
+    try:
+        accounts = await db.get_all_available_accounts_for_validation()
+        if not accounts:
+            return
+        invalid_ids = []
+        for acc in accounts:
+            try:
+                await context.bot.get_file(acc["file_id"])
+            except Exception as e:
+                err = str(e).lower()
+                if any(x in err for x in [
+                    "wrong file identifier", "file_id", "invalid",
+                    "not found", "bad request"
+                ]):
+                    invalid_ids.append(acc["account_id"])
+            await asyncio.sleep(0.1)
+        if invalid_ids:
+            await db.bulk_trash_accounts(invalid_ids)
+            from src.handlers.logger import log_event
+            logger.info(f"🗑️ Auto-validation: trashed {len(invalid_ids)} deleted file(s)")
+            await log_event(context.bot, "auto_validation_cleanup", extra={
+                "trashed":   len(invalid_ids),
+                "remaining": await db.get_available_count(),
+            })
+        else:
+            logger.info("✅ Auto-validation: all file_ids valid")
+    except Exception as e:
+        logger.warning(f"⚠️ Validation job error: {e}")
+
+
 async def cleanup_expired_accounts(context: ContextTypes.DEFAULT_TYPE):
     """Hourly job: auto-trash accounts older than ACCOUNT_EXPIRY_DAYS days."""
     try:
@@ -118,6 +151,14 @@ async def post_init(application: Application):
         name="expiry_cleanup"
     )
     logger.info(f"✅ Expiry cleanup scheduled (every 1h, expires after {ACCOUNT_EXPIRY_DAYS}d)")
+
+    application.job_queue.run_repeating(
+        validate_accounts_job,
+        interval=1800,   # every 30 minutes
+        first=120,       # first run 2 minutes after startup
+        name="validate_accounts"
+    )
+    logger.info("✅ Account validation scheduled (every 30 min)")
 
     logger.info("🎬 Netflix Kingdom Bot is LIVE!")
 
@@ -180,6 +221,9 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_codes_callback,      pattern="^admin_codes$"))
     app.add_handler(CallbackQueryHandler(admin_gen_codes_callback,  pattern="^admin_gen_codes$"))
     app.add_handler(CallbackQueryHandler(admin_view_codes_callback, pattern="^admin_view_codes$"))
+
+    # Admin — validate stock
+    app.add_handler(CallbackQueryHandler(admin_validate_callback,   pattern="^admin_validate$"))
 
     # ── MESSAGE HANDLERS ──────────────────────────────────────────
 

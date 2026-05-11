@@ -85,7 +85,10 @@ def admin_main_keyboard():
             InlineKeyboardButton("👑 Top Referrers",      callback_data="admin_top_refs"),
         ],
         [
+            InlineKeyboardButton("🧹 Validate Stock",    callback_data="admin_validate"),
             InlineKeyboardButton("🔄 Restart Bot",        callback_data="admin_restart"),
+        ],
+        [
             InlineKeyboardButton("🏠 Close Panel",        callback_data="admin_close"),
         ],
     ])

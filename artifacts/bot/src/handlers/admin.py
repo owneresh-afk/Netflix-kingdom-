@@ -664,3 +664,76 @@ async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     context.user_data.pop("admin_action", None)
     return True
+
+
+# ── Validate Stock ────────────────────────────────────────────────────────────
+
+async def admin_validate_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Check every available file_id against Telegram and trash deleted ones.
+    Fixes the inflated 'available' count caused by files deleted from the channel.
+    """
+    query = update.callback_query
+    await query.answer("🔍 Validating stock...", show_alert=False)
+    if not is_admin(query.from_user.id):
+        return
+
+    accounts = await db.get_all_available_accounts_for_validation()
+    total = len(accounts)
+
+    if total == 0:
+        await query.edit_message_text(
+            "✅ *Stock is empty — nothing to validate.*",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=admin_back_keyboard()
+        )
+        return
+
+    await query.edit_message_text(
+        f"🔍 *Validating {total} account(s)...*\n\n"
+        f"Checking each file with Telegram — please wait.",
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+    import asyncio as _asyncio
+    invalid_ids = []
+    for acc in accounts:
+        try:
+            await context.bot.get_file(acc["file_id"])
+        except Exception as e:
+            err = str(e).lower()
+            if any(x in err for x in [
+                "wrong file identifier", "file_id", "invalid",
+                "not found", "bad request"
+            ]):
+                invalid_ids.append(acc["account_id"])
+        await _asyncio.sleep(0.1)
+
+    if invalid_ids:
+        await db.bulk_trash_accounts(invalid_ids)
+
+    remaining = await db.get_available_count()
+
+    await query.edit_message_text(
+        f"✅ *Validation Complete!*\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔍 *Checked:* `{total}`\n"
+        f"🗑️ *Removed (deleted files):* `{len(invalid_ids)}`\n"
+        f"✅ *Valid & Available:* `{remaining}`",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=admin_back_keyboard()
+    )
+
+    await log_event(
+        context.bot, "manual_validation",
+        {
+            "user_id":   query.from_user.id,
+            "full_name": query.from_user.full_name,
+            "username":  query.from_user.username,
+        },
+        extra={
+            "checked":   total,
+            "trashed":   len(invalid_ids),
+            "remaining": remaining,
+        }
+    )
