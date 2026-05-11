@@ -1,0 +1,28 @@
+FILE/ID: Netflix [France ≡ƒç½≡ƒç╖] [jacques.deckert@....com] [Standard] [PaymentMethod-CP_FR_BILLED] [ExtraMember-false].txt
+🎬 Netflix Account
+🍪 COOKIE: ct%3DBgjHlOvcAxLkA5j82U8paN3JqTO49qeWxjbThzUaX-tUPqD9ioO4HKsHWr72HBJ-sFOyieLNhm21RcYvdYz5j8SJ9Mm9_BrqnIGR0QJEMElINEOs8a2dhzbnOHOIkqNpGk3fkXUjKOjFMaXWkDcmmtTXJjCwknCGslDHtK-WKE1Q5vsJAJagmirmWrLzW3gFrJuD9xspFuIOiJbO77kOL5xyBUMJYbOmA4ZTOIKf4XhabyXlNpwLYyuruUqhE3M8bw-DtFsVeWNqaquEWlPOyJHfaaBWieHADf5GcsGKqin78aeZwbSO2IJfLvQlJMZiNJ68sqLs0niFAh_LX0BXMhzJ6mtY1qqFJ9ua2_FP8blTe75OrqEr7quSteNurcJ6V0vVqqHzOn6er-18gcHQdL71VMFAcjCvwqT2GDVfoC0QGG27Av8XRyegKCcM0C89myZmgbUX7XSz0hj9zDELMgyMlW6wxuq6gpmIj2_5BuGki0HG8QlyIiJrDyXFk37Qo2y07ER4edbZuo6nlSX3x5YKj0pVSaf4LNzyXnGPU-Sd8JgqcxYiHlDLKoHnKBhkeoYUFw9uduLZ6xqTRiVIKqqqUQ218odQ-Q-YB1fR-DsZmc2E7NphY9JG9_cOUyuwfpJmPshyksfjSXONJG8YBiIOCgz1CWFVom4O75wYRNM.%26ch%3DAQEAEAABABQ6SAO1B2YgY7UcGgMk9UPQGcA4vaMQiYI.%26v%3D3%26pg%3DVJCQ5A2LNJF5BA35IBALTDVS24
+
+👤 Name: Flo
+📧 Email: jacques.deckert@laposte.net
+🌍 Country: FR 🇫🇷
+📦 Plan: Standard
+📅 Member Since: February 2018
+⏳ Next Billing: None
+💳 Payment: CP_FR_BILLED
+💳 Card: 3634
+📱 Phone: +33632847100
+📺 Quality: HD
+🎥 Streams: 2}
+💰 Price: None
+🔒 Hold Status: No
+✅ Email Verified: Yes
+📌 Status: CURRENT_MEMBER
+👥 Profiles (4): Jacques, Anne, Fafa, Flo
+
+🖥️ PC: https://netflix.com/?nftoken=BgjXuOvcAxLCAfLUaqP/a8WE5wl/GpC5fin1FzclwNngxHp8mrvrk/08poki6Lb/zXq2Rh/VMXQYQl0XEK0FCXJS+IyodogTqmWB5hHefxUAACAUf+CsTgxbJ84Bb1M8KWn0cRNukZqt+Zq4sqWtyNTszw271mpKaGrxq6bI0gjPAALJGJ0KSChebXoUuALPePJlKBg7OU/93LPX16j9fH5uuGgI85i9gtmjtbF8F5wGr29Jv8fAvn0vGqCxs7YcWbKArW7ZPsBPelNOGAYiDgoMByTv3497Mi2MpW6O
+📱 MB: https://www.netflix.com/unsupported?nftoken=BgjXuOvcAxLCAfLUaqP/a8WE5wl/GpC5fin1FzclwNngxHp8mrvrk/08poki6Lb/zXq2Rh/VMXQYQl0XEK0FCXJS+IyodogTqmWB5hHefxUAACAUf+CsTgxbJ84Bb1M8KWn0cRNukZqt+Zq4sqWtyNTszw271mpKaGrxq6bI0gjPAALJGJ0KSChebXoUuALPePJlKBg7OU/93LPX16j9fH5uuGgI85i9gtmjtbF8F5wGr29Jv8fAvn0vGqCxs7YcWbKArW7ZPsBPelNOGAYiDgoMByTv3497Mi2MpW6O
+
+━━━━━━━━━━━━━━
+🔗 Bot: @tnnetflixx_bot
+🌐 Link: https://t.me/tnnetflixx_bot
+━━━━━━━━━━━━━━

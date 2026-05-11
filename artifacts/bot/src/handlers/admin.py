@@ -6,7 +6,7 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
 from src import database as db
-from src.config import ADMIN_IDS, POINTS_FOR_REWARD
+from src.config import ADMIN_IDS, POINTS_FOR_REWARD, ACCOUNT_EXPIRY_DAYS
 from src.keyboards import (
     admin_main_keyboard, admin_back_keyboard,
     admin_channels_keyboard, confirm_restart_keyboard, admin_codes_keyboard,
@@ -168,21 +168,26 @@ async def admin_accounts_callback(update: Update, context: ContextTypes.DEFAULT_
     if not is_admin(query.from_user.id):
         return
 
-    available      = await db.get_available_count()
-    total_redeemed = await db.get_total_redeemed()
+    available       = await db.get_available_count()
+    total_redeemed  = await db.get_total_redeemed()
+    expiring_soon   = await db.get_expiring_soon_count()
 
     text = (
         f"🎬 *ACCOUNT MANAGEMENT*\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"✅ *Available:* `{available}`\n"
+        f"✅ *Available (fresh):* `{available}`\n"
+        f"⏰ *Expiring soon (<6h):* `{expiring_soon}`\n"
         f"📤 *Redeemed:* `{total_redeemed}`\n"
-        f"📦 *Total Added:* `{available + total_redeemed}`\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🗑️ *Auto-Expiry System:* ON\n"
+        f"• Accounts not redeemed in *{ACCOUNT_EXPIRY_DAYS} days* are auto-trashed\n"
+        f"• Cleanup runs every *1 hour* automatically\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📌 *How to add accounts:*\n"
-        f"Send a `.zip` file or individual files to the DB channel.\n"
-        f"The bot auto-processes everything.\n\n"
-        f"⚠️ *Note:* Files deleted from Telegram are automatically\n"
-        f"removed from stock when a user tries to redeem them."
+        f"Send a `.zip` or individual files to the DB channel.\n"
+        f"Bot auto-processes, renames with copyright & uploads.\n\n"
+        f"⚠️ Files deleted from Telegram are auto-trashed\n"
+        f"when a user tries to redeem them."
     )
     await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=admin_back_keyboard())
 

@@ -12,7 +12,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from src.config import BOT_TOKEN, DB_CHANNEL_ID
+from src.config import BOT_TOKEN, DB_CHANNEL_ID, ACCOUNT_EXPIRY_DAYS
 from src import database as db
 from src.handlers.start import start, check_verify_callback
 from src.handlers.menu import (
@@ -78,6 +78,27 @@ async def notify_me_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.answer("🔔 You'll be notified when accounts become available!", show_alert=True)
 
 
+async def cleanup_expired_accounts(context: ContextTypes.DEFAULT_TYPE):
+    """Hourly job: auto-trash accounts older than ACCOUNT_EXPIRY_DAYS days."""
+    try:
+        trashed = await db.auto_trash_expired()
+        if trashed > 0:
+            from src.handlers.logger import log_event
+            logger.info(f"🗑️ Auto-trashed {trashed} expired account(s)")
+            await log_event(
+                context.bot, "auto_trash",
+                extra={
+                    "trashed_count":  trashed,
+                    "expiry_days":    ACCOUNT_EXPIRY_DAYS,
+                    "remaining_stock": await db.get_available_count(),
+                }
+            )
+        else:
+            logger.info("✅ Expiry cleanup ran — no expired accounts found")
+    except Exception as e:
+        logger.warning(f"⚠️ Expiry cleanup error: {e}")
+
+
 async def post_init(application: Application):
     await db.init_db()
     logger.info("✅ Database initialized")
@@ -88,6 +109,15 @@ async def post_init(application: Application):
         logger.info("✅ Bot commands registered")
     except Exception as e:
         logger.warning(f"⚠️ Could not set commands: {e}")
+
+    # Schedule hourly expiry cleanup (first run after 60 seconds)
+    application.job_queue.run_repeating(
+        cleanup_expired_accounts,
+        interval=3600,   # every 1 hour
+        first=60,        # first run 60 s after startup
+        name="expiry_cleanup"
+    )
+    logger.info(f"✅ Expiry cleanup scheduled (every 1h, expires after {ACCOUNT_EXPIRY_DAYS}d)")
 
     logger.info("🎬 Netflix Kingdom Bot is LIVE!")
 

@@ -59,6 +59,7 @@ EVENT_ICONS = {
     "zip_processed":    "📦",
     "account_invalid":  "⚠️",
     "proof_locked":     "🔒",
+    "auto_trash":       "🗑️",
 }
 
 

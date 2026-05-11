@@ -1,7 +1,7 @@
 import aiosqlite
 import os
 from datetime import datetime
-from src.config import DB_PATH, MAX_NOT_WORKING
+from src.config import DB_PATH, MAX_NOT_WORKING, ACCOUNT_EXPIRY_DAYS
 
 
 async def init_db():
@@ -173,11 +173,17 @@ async def add_account(file_id: str, file_name: str):
         await db.commit()
 
 
+_EXPIRY_FILTER = (
+    "given_to IS NULL AND is_trashed = 0 "
+    f"AND added_at > datetime('now', '-{ACCOUNT_EXPIRY_DAYS} days')"
+)
+
+
 async def get_available_account():
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT * FROM accounts WHERE given_to IS NULL AND is_trashed = 0 ORDER BY account_id ASC LIMIT 1"
+            f"SELECT * FROM accounts WHERE {_EXPIRY_FILTER} ORDER BY account_id ASC LIMIT 1"
         )
         return await cursor.fetchone()
 
@@ -185,10 +191,36 @@ async def get_available_account():
 async def get_available_count():
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "SELECT COUNT(*) FROM accounts WHERE given_to IS NULL AND is_trashed = 0"
+            f"SELECT COUNT(*) FROM accounts WHERE {_EXPIRY_FILTER}"
         )
         row = await cursor.fetchone()
         return row[0]
+
+
+async def get_expiring_soon_count():
+    """Accounts expiring within the next 6 hours (still available but nearly stale)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            f"""SELECT COUNT(*) FROM accounts
+                WHERE {_EXPIRY_FILTER}
+                  AND added_at <= datetime('now', '-{ACCOUNT_EXPIRY_DAYS} days', '+6 hours')"""
+        )
+        row = await cursor.fetchone()
+        return row[0]
+
+
+async def auto_trash_expired() -> int:
+    """Mark all un-assigned accounts older than ACCOUNT_EXPIRY_DAYS as trashed.
+    Returns the number of accounts that were trashed."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            f"""UPDATE accounts SET is_trashed = 1
+                WHERE given_to IS NULL
+                  AND is_trashed = 0
+                  AND added_at <= datetime('now', '-{ACCOUNT_EXPIRY_DAYS} days')"""
+        )
+        await db.commit()
+        return cursor.rowcount
 
 
 async def assign_account(account_id: int, user_id: int):

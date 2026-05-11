@@ -1,0 +1,28 @@
+FILE/ID: Netflix [France ≡ƒç½≡ƒç╖] [jacques.deckert@....com] [Standard] [PaymentMethod-CP_FR_BILLED] [ExtraMember-false].txt
+🎬 Netflix Account
+🍪 COOKIE: v%3D3%26ct%3DBgjHlOvcAxL8AioNFKM0SIccXB1wQm7WroL-kHln_NGSO8SoWarYfuJHBUDtVCIpzX-3n-Sn0Cm4KHkQNcjGQm4O0xtiBj_-3245f3_MMu4FMg9sSLexDTZ0prvTcPtcum3pxw8QE1QyH92WsoPoeAJHQLLVk1ev8D5JHWkQo-TIjERF8ZrtjKim7Jbss8wy551PHlQiqQt2NQukQPkLnBvf7vviYNhF--0H_lMaAyEB6UVds0TS3b4eOczNibI8R2TZKEj2xqaYCCaegm0h-TF_GYURKT9EWtsgs5TLY--y-gA6-91k--0Vg-dryYQDibpjlBSMCkDrGPG2TLsiZU_RLATL81i6a9YPICkR1nkRWmoC9vE97vfb5GH5VL7XF94pOTubvBPIS_XhBwmavgdx7p7W-VcPY9hK43EYXO-m4Jb0UmPaGOTqBFqRTois_nFenFSe37YyiuyT8xv4n7Vet2YJAxEXE51r7-eJ2xmBbzfjxtJ_7TZGKRlRE4YPwpYe3VQyGAYiDgoMwFpVdqo-WsWiOnSy%26pg%3DVJCQ5A2LNJF5BA35IBALTDVS24%26ch%3DAQEAEAABABSqBk6dAvtNqG3HgypJpforB4tFiDJvK1Y.
+
+👤 Name: Flo
+📧 Email: jacques.deckert@laposte.net
+🌍 Country: FR 🇫🇷
+📦 Plan: Standard
+📅 Member Since: February 2018
+⏳ Next Billing: None
+💳 Payment: CP_FR_BILLED
+💳 Card: 3634
+📱 Phone: +33632847100
+📺 Quality: HD
+🎥 Streams: 2}
+💰 Price: None
+🔒 Hold Status: No
+✅ Email Verified: Yes
+📌 Status: CURRENT_MEMBER
+👥 Profiles (4): Jacques, Anne, Fafa, Flo
+
+🖥️ PC: https://netflix.com/?nftoken=BgjXuOvcAxLCAZqg319m+RTSvBrd6H9teGma623CJY7rhw0AG6Fo7DT1UH2DveKQQMqOLbMjKcLXMA57OXewPzBlnL94/7JDE4rvPvcseObJoXA2NsHl0Dh5IFAhSK1V1f9q2Co8XUMG31ZYjbxOSjyM0xQwVORpF1TmarTSXs2TaM3LWDaXLqIBkgXQukbBrft+A4ag5yO/9IOlra6JHpLWFl8YQuAvieNiyECldgS0zFpXe/fmHZ2SqU8wmnAKHLo3cxvtVF6R72xNGAYiDgoMS3Z+tHZAQj/5husf
+📱 MB: https://www.netflix.com/unsupported?nftoken=BgjXuOvcAxLCAZqg319m+RTSvBrd6H9teGma623CJY7rhw0AG6Fo7DT1UH2DveKQQMqOLbMjKcLXMA57OXewPzBlnL94/7JDE4rvPvcseObJoXA2NsHl0Dh5IFAhSK1V1f9q2Co8XUMG31ZYjbxOSjyM0xQwVORpF1TmarTSXs2TaM3LWDaXLqIBkgXQukbBrft+A4ag5yO/9IOlra6JHpLWFl8YQuAvieNiyECldgS0zFpXe/fmHZ2SqU8wmnAKHLo3cxvtVF6R72xNGAYiDgoMS3Z+tHZAQj/5husf
+
+━━━━━━━━━━━━━━
+🔗 Bot: @tnnetflixx_bot
+🌐 Link: https://t.me/tnnetflixx_bot
+━━━━━━━━━━━━━━
