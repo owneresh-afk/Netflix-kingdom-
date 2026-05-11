@@ -689,15 +689,32 @@ async def admin_validate_callback(update: Update, context: ContextTypes.DEFAULT_
         )
         return
 
-    await query.edit_message_text(
-        f"🔍 *Validating {total} account(s)...*\n\n"
-        f"Checking each file with Telegram — please wait.",
-        parse_mode=ParseMode.MARKDOWN
-    )
+    def _bar(checked, total, width=16):
+        filled = int(width * checked / total) if total else 0
+        return "█" * filled + "░" * (width - filled)
+
+    async def _update_progress(checked, invalid_count):
+        pct = int(100 * checked / total)
+        bar = _bar(checked, total)
+        try:
+            await query.edit_message_text(
+                f"🔍 *Validating Stock...*\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"`{bar}` {pct}%\n\n"
+                f"✅ *Checked:* `{checked}` / `{total}`\n"
+                f"🗑️ *Removed so far:* `{invalid_count}`",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception:
+            pass
+
+    await _update_progress(0, 0)
 
     import asyncio as _asyncio
     invalid_ids = []
-    for acc in accounts:
+    UPDATE_EVERY = max(1, total // 10)
+
+    for i, acc in enumerate(accounts, 1):
         try:
             await context.bot.get_file(acc["file_id"])
         except Exception as e:
@@ -708,6 +725,9 @@ async def admin_validate_callback(update: Update, context: ContextTypes.DEFAULT_
             ]):
                 invalid_ids.append(acc["account_id"])
         await _asyncio.sleep(0.1)
+
+        if i % UPDATE_EVERY == 0 or i == total:
+            await _update_progress(i, len(invalid_ids))
 
     if invalid_ids:
         await db.bulk_trash_accounts(invalid_ids)
