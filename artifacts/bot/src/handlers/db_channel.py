@@ -5,6 +5,7 @@ import zipfile
 import aiofiles
 import aiohttp
 from telegram import Update, Bot
+from telegram.error import RetryAfter, TimedOut
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
@@ -13,9 +14,42 @@ from src.config import DB_CHANNEL_ID, FILE_CHANNEL_ID
 from src.utils.animations import build_zip_progress
 from src.handlers.logger import log_event
 
+# Copyright tag appended to every filename before upload
+COPYRIGHT_TAG = "@Netflix_kingdom_robot"
+
+
+def _rename_with_copyright(original_name: str) -> str:
+    """Return filename with copyright tag: 'cookie.txt' → 'cookie @Netflix_kingdom_robot.txt'"""
+    base, ext = os.path.splitext(original_name)
+    return f"{base} {COPYRIGHT_TAG}{ext}"
+
+
+async def _send_document_with_retry(bot: Bot, chat_id: int, bio: io.BytesIO,
+                                    filename: str, max_retries: int = 5):
+    """Send a document, retrying on Telegram rate-limit (RetryAfter) errors."""
+    for attempt in range(1, max_retries + 1):
+        try:
+            bio.seek(0)
+            bio.name = filename
+            sent = await bot.send_document(
+                chat_id=chat_id,
+                document=bio,
+                filename=filename,
+            )
+            return sent
+        except RetryAfter as e:
+            wait = e.retry_after + 1
+            print(f"[ZIP] RetryAfter {wait}s on attempt {attempt} — waiting...")
+            await asyncio.sleep(wait)
+        except TimedOut:
+            await asyncio.sleep(3 * attempt)
+        except Exception:
+            raise
+    return None
+
 
 async def handle_db_channel_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle any file posted to the DB channel."""
+    """Handle any document posted to the DB channel."""
     message = update.channel_post or update.message
     if not message:
         return
@@ -36,45 +70,50 @@ async def handle_db_channel_file(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def _handle_single(bot: Bot, message, doc, file_name: str):
-    """Forward a single file to FILE_CHANNEL and save the file_id to DB."""
+    """Forward a single file to FILE_CHANNEL with copyright rename, save file_id."""
     progress_msg = None
     try:
+        renamed = _rename_with_copyright(file_name)
         progress_msg = await bot.send_message(
             DB_CHANNEL_ID,
-            f"📄 *Received:* `{file_name}`\n⏳ Forwarding to Files Channel...",
+            f"📄 *Received:* `{file_name}`\n"
+            f"⏳ Uploading as `{renamed}`...",
             parse_mode=ParseMode.MARKDOWN
         )
 
-        forwarded = await bot.forward_message(
-            chat_id=FILE_CHANNEL_ID,
-            from_chat_id=message.chat.id,
-            message_id=message.message_id
-        )
+        # Download the file bytes
+        tg_file  = await bot.get_file(doc.file_id)
+        file_url = tg_file.file_path
+        async with aiohttp.ClientSession() as session:
+            async with session.get(file_url) as resp:
+                resp.raise_for_status()
+                raw = await resp.read()
 
-        file_id = forwarded.document.file_id if forwarded.document else None
+        bio      = io.BytesIO(raw)
+        bio.name = renamed
+        sent = await _send_document_with_retry(bot, FILE_CHANNEL_ID, bio, renamed)
 
-        if file_id:
-            await db.add_account(file_id, file_name)
+        if sent and sent.document:
+            await db.add_account(sent.document.file_id, renamed)
             available = await db.get_available_count()
             await progress_msg.edit_text(
                 f"✅ *File Added!*\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"📄 *File:* `{file_name}`\n"
+                f"📄 *Saved as:* `{renamed}`\n"
                 f"🎬 *Total Available:* `{available}`",
                 parse_mode=ParseMode.MARKDOWN
             )
             await log_event(bot, "file_added", extra={
-                "file_name":       file_name,
+                "file_name":       renamed,
                 "total_available": available,
             })
         else:
             await progress_msg.edit_text(
-                f"⚠️ Could not extract file\\_id for `{file_name}`",
+                f"⚠️ Could not upload `{renamed}` — no response from Telegram.",
                 parse_mode=ParseMode.MARKDOWN
             )
-
     except Exception as e:
-        errmsg = f"❌ *Error processing* `{file_name}`:\n`{str(e)[:300]}`"
+        errmsg = f"❌ *Error:* `{str(e)[:300]}`"
         try:
             if progress_msg:
                 await progress_msg.edit_text(errmsg, parse_mode=ParseMode.MARKDOWN)
@@ -85,12 +124,12 @@ async def _handle_single(bot: Bot, message, doc, file_name: str):
 
 
 async def _handle_zip(bot: Bot, message, doc, file_name: str):
-    """Download ZIP, extract, upload each file to FILE_CHANNEL, clean up."""
-    TEMP_DIR  = "data/temp"
+    """Download ZIP → extract → rename with copyright → upload all to FILE_CHANNEL."""
+    TEMP_DIR    = "data/temp"
     os.makedirs(TEMP_DIR, exist_ok=True)
 
     local_zip   = os.path.join(TEMP_DIR, file_name)
-    extract_dir = os.path.join(TEMP_DIR, file_name.replace(".zip", "").replace(".ZIP", ""))
+    extract_dir = os.path.join(TEMP_DIR, file_name[:-4].replace(".ZIP", ""))
 
     progress_msg = await bot.send_message(
         DB_CHANNEL_ID,
@@ -98,12 +137,20 @@ async def _handle_zip(bot: Bot, message, doc, file_name: str):
         parse_mode=ParseMode.MARKDOWN
     )
 
-    try:
-        # ── Step 1: Download from Telegram ──────────────────────
-        await progress_msg.edit_text(build_zip_progress(1), parse_mode=ParseMode.MARKDOWN)
+    async def update_progress(step, total=0, uploaded=0):
+        try:
+            await progress_msg.edit_text(
+                build_zip_progress(step, total, uploaded),
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception:
+            pass
 
+    try:
+        # ── 1. Download ──────────────────────────────────────────
+        await update_progress(1)
         tg_file  = await bot.get_file(doc.file_id)
-        file_url = tg_file.file_path  # direct download URL
+        file_url = tg_file.file_path
 
         async with aiohttp.ClientSession() as session:
             async with session.get(file_url) as resp:
@@ -112,19 +159,18 @@ async def _handle_zip(bot: Bot, message, doc, file_name: str):
                     async for chunk in resp.content.iter_chunked(65536):
                         await f.write(chunk)
 
-        # ── Step 2: Unzip ────────────────────────────────────────
-        await progress_msg.edit_text(build_zip_progress(2), parse_mode=ParseMode.MARKDOWN)
-
+        # ── 2. Unzip ─────────────────────────────────────────────
+        await update_progress(2)
         os.makedirs(extract_dir, exist_ok=True)
         with zipfile.ZipFile(local_zip, "r") as zf:
             zf.extractall(extract_dir)
 
-        # Collect all files (non-hidden, recursive)
+        # Collect files (skip hidden / macOS metadata)
         all_files = []
         for root, _dirs, files in os.walk(extract_dir):
-            for fname in files:
-                if not fname.startswith(".") and not fname.startswith("__"):
-                    all_files.append(os.path.join(root, fname))
+            for fname in sorted(files):
+                if not fname.startswith(".") and not fname.startswith("__") and fname != "":
+                    all_files.append((os.path.join(root, fname), fname))
 
         total = len(all_files)
         if total == 0:
@@ -134,53 +180,40 @@ async def _handle_zip(bot: Bot, message, doc, file_name: str):
             )
             return
 
-        # ── Step 3: Upload each file to FILE_CHANNEL ────────────
-        await progress_msg.edit_text(
-            build_zip_progress(3, total, 0),
-            parse_mode=ParseMode.MARKDOWN
-        )
+        # ── 3. Upload each file ──────────────────────────────────
+        await update_progress(3, total, 0)
 
         uploaded = 0
         failed   = 0
 
-        for fpath in all_files:
-            fname = os.path.basename(fpath)
+        for fpath, fname in all_files:
+            renamed = _rename_with_copyright(fname)
             try:
                 async with aiofiles.open(fpath, "rb") as f:
                     raw = await f.read()
 
-                # Use BytesIO — the CORRECT way to send raw bytes in PTB v20
-                bio      = io.BytesIO(raw)
-                bio.name = fname
+                bio = io.BytesIO(raw)
+                sent = await _send_document_with_retry(bot, FILE_CHANNEL_ID, bio, renamed)
 
-                sent = await bot.send_document(
-                    chat_id  = FILE_CHANNEL_ID,
-                    document = bio,
-                    filename = fname,
-                )
-
-                if sent.document:
-                    await db.add_account(sent.document.file_id, fname)
+                if sent and sent.document:
+                    await db.add_account(sent.document.file_id, renamed)
                     uploaded += 1
-
-                if uploaded % 5 == 0 or (uploaded + failed) == total:
-                    try:
-                        await progress_msg.edit_text(
-                            build_zip_progress(3, total, uploaded),
-                            parse_mode=ParseMode.MARKDOWN
-                        )
-                    except Exception:
-                        pass
-
-                await asyncio.sleep(0.25)
+                else:
+                    failed += 1
 
             except Exception as e:
                 failed += 1
-                print(f"[ZIP UPLOAD ERROR] {fname}: {e}")
+                print(f"[ZIP UPLOAD ERROR] {renamed}: {e}")
 
-        # ── Step 4: Cleanup ──────────────────────────────────────
-        await progress_msg.edit_text(build_zip_progress(4), parse_mode=ParseMode.MARKDOWN)
+            # Update progress every 5 files or at the end
+            if (uploaded + failed) % 5 == 0 or (uploaded + failed) == total:
+                await update_progress(3, total, uploaded)
 
+            # Polite delay to respect Telegram rate limits
+            await asyncio.sleep(0.35)
+
+        # ── 4. Cleanup ───────────────────────────────────────────
+        await update_progress(4)
         try:
             import shutil
             if os.path.exists(local_zip):
@@ -190,25 +223,26 @@ async def _handle_zip(bot: Bot, message, doc, file_name: str):
         except Exception:
             pass
 
-        # ── Step 5: Done ─────────────────────────────────────────
-        await asyncio.sleep(0.4)
+        # ── 5. Report ────────────────────────────────────────────
+        await asyncio.sleep(0.3)
         available = await db.get_available_count()
 
         await progress_msg.edit_text(
             f"✅ *ZIP Processing Complete!*\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"📦 *ZIP File:* `{file_name}`\n"
-            f"📁 *Files in ZIP:* `{total}`\n"
+            f"📦 *ZIP:* `{file_name}`\n"
+            f"📁 *Files Found:* `{total}`\n"
             f"✅ *Uploaded:* `{uploaded}`\n"
             f"❌ *Failed:* `{failed}`\n"
+            f"🏷️ *Tagged:* `{COPYRIGHT_TAG}`\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🎬 *Total Accounts Now Available:* `{available}`",
+            f"🎬 *Total Accounts Available:* `{available}`",
             parse_mode=ParseMode.MARKDOWN
         )
 
         await log_event(bot, "zip_processed", extra={
             "zip_file":        file_name,
-            "files_in_zip":    total,
+            "files_found":     total,
             "uploaded":        uploaded,
             "failed":          failed,
             "total_available": available,
@@ -220,7 +254,7 @@ async def _handle_zip(bot: Bot, message, doc, file_name: str):
             await progress_msg.edit_text(errmsg, parse_mode=ParseMode.MARKDOWN)
         except Exception:
             pass
-        # Cleanup on error
+        # Always clean up
         try:
             import shutil
             if os.path.exists(local_zip):

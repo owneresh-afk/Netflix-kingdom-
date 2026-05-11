@@ -1,8 +1,8 @@
 import aiosqlite
-import asyncio
 import os
 from datetime import datetime
-from src.config import DB_PATH
+from src.config import DB_PATH, MAX_NOT_WORKING
+
 
 async def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -74,10 +74,14 @@ async def init_db():
         count = await db.execute("SELECT COUNT(*) FROM bot_stats")
         row = await count.fetchone()
         if row[0] == 0:
-            await db.execute("INSERT INTO bot_stats (start_time) VALUES (?)", (datetime.now().isoformat(),))
+            await db.execute(
+                "INSERT INTO bot_stats (start_time) VALUES (?)",
+                (datetime.now().isoformat(),)
+            )
         await db.commit()
 
-# ── USER FUNCTIONS ──────────────────────────────────────────────
+
+# ── USER ────────────────────────────────────────────────────────
 
 async def get_user(user_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -85,13 +89,15 @@ async def get_user(user_id: int):
         cursor = await db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
         return await cursor.fetchone()
 
+
 async def create_user(user_id: int, username: str, full_name: str, referrer_id: int = None):
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-            INSERT OR IGNORE INTO users (user_id, username, full_name, referrer_id)
-            VALUES (?, ?, ?, ?)
-        """, (user_id, username, full_name, referrer_id))
+        await db.execute(
+            "INSERT OR IGNORE INTO users (user_id, username, full_name, referrer_id) VALUES (?, ?, ?, ?)",
+            (user_id, username, full_name, referrer_id)
+        )
         await db.commit()
+
 
 async def update_user(user_id: int, **kwargs):
     if not kwargs:
@@ -102,18 +108,28 @@ async def update_user(user_id: int, **kwargs):
         await db.execute(f"UPDATE users SET {fields} WHERE user_id = ?", values)
         await db.commit()
 
+
 async def set_verified(user_id: int):
     await update_user(user_id, is_verified=1, last_active=datetime.now().isoformat())
 
+
 async def add_points(user_id: int, points: int):
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (points, user_id))
+        await db.execute(
+            "UPDATE users SET points = points + ? WHERE user_id = ?",
+            (points, user_id)
+        )
         await db.commit()
+
 
 async def add_referral(referrer_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE users SET referral_count = referral_count + 1, points = points + 1 WHERE user_id = ?", (referrer_id,))
+        await db.execute(
+            "UPDATE users SET referral_count = referral_count + 1, points = points + 1 WHERE user_id = ?",
+            (referrer_id,)
+        )
         await db.commit()
+
 
 async def get_all_users():
     async with aiosqlite.connect(DB_PATH) as db:
@@ -121,48 +137,59 @@ async def get_all_users():
         cursor = await db.execute("SELECT * FROM users ORDER BY joined_at DESC")
         return await cursor.fetchall()
 
-async def get_leaderboard(limit=10):
+
+async def get_leaderboard(limit: int = 10):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("""
-            SELECT * FROM users WHERE is_banned = 0
-            ORDER BY referral_count DESC LIMIT ?
-        """, (limit,))
+        cursor = await db.execute(
+            "SELECT * FROM users WHERE is_banned = 0 ORDER BY referral_count DESC LIMIT ?",
+            (limit,)
+        )
         return await cursor.fetchall()
+
 
 async def ban_user(user_id: int):
     await update_user(user_id, is_banned=1)
 
+
 async def unban_user(user_id: int):
     await update_user(user_id, is_banned=0)
+
 
 async def reset_all_verifications():
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE users SET is_verified = 0")
         await db.commit()
 
-# ── ACCOUNT FUNCTIONS ──────────────────────────────────────────
+
+# ── ACCOUNT ─────────────────────────────────────────────────────
 
 async def add_account(file_id: str, file_name: str):
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("INSERT INTO accounts (file_id, file_name) VALUES (?, ?)", (file_id, file_name))
+        await db.execute(
+            "INSERT INTO accounts (file_id, file_name) VALUES (?, ?)",
+            (file_id, file_name)
+        )
         await db.commit()
+
 
 async def get_available_account():
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("""
-            SELECT * FROM accounts
-            WHERE given_to IS NULL AND is_trashed = 0
-            ORDER BY account_id ASC LIMIT 1
-        """)
+        cursor = await db.execute(
+            "SELECT * FROM accounts WHERE given_to IS NULL AND is_trashed = 0 ORDER BY account_id ASC LIMIT 1"
+        )
         return await cursor.fetchone()
+
 
 async def get_available_count():
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("SELECT COUNT(*) FROM accounts WHERE given_to IS NULL AND is_trashed = 0")
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM accounts WHERE given_to IS NULL AND is_trashed = 0"
+        )
         row = await cursor.fetchone()
         return row[0]
+
 
 async def assign_account(account_id: int, user_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -172,18 +199,26 @@ async def assign_account(account_id: int, user_id: int):
         )
         await db.commit()
 
+
 async def trash_account(account_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE accounts SET is_trashed = 1 WHERE account_id = ?", (account_id,))
+        await db.execute(
+            "UPDATE accounts SET is_trashed = 1 WHERE account_id = ?",
+            (account_id,)
+        )
         await db.commit()
+
 
 async def get_total_redeemed():
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("SELECT COUNT(*) FROM accounts WHERE given_to IS NOT NULL")
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM accounts WHERE given_to IS NOT NULL"
+        )
         row = await cursor.fetchone()
         return row[0]
 
-# ── REDEMPTION FUNCTIONS ──────────────────────────────────────
+
+# ── REDEMPTION ──────────────────────────────────────────────────
 
 async def create_redemption(user_id: int, account_id: int) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -194,11 +229,16 @@ async def create_redemption(user_id: int, account_id: int) -> int:
         await db.commit()
         return cursor.lastrowid
 
+
 async def get_redemption(redemption_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM redemptions WHERE redemption_id = ?", (redemption_id,))
+        cursor = await db.execute(
+            "SELECT * FROM redemptions WHERE redemption_id = ?",
+            (redemption_id,)
+        )
         return await cursor.fetchone()
+
 
 async def increment_not_working(redemption_id: int) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -207,9 +247,13 @@ async def increment_not_working(redemption_id: int) -> int:
             (redemption_id,)
         )
         await db.commit()
-        cursor = await db.execute("SELECT not_working_count FROM redemptions WHERE redemption_id = ?", (redemption_id,))
+        cursor = await db.execute(
+            "SELECT not_working_count FROM redemptions WHERE redemption_id = ?",
+            (redemption_id,)
+        )
         row = await cursor.fetchone()
         return row[0]
+
 
 async def update_redemption(redemption_id: int, **kwargs):
     if not kwargs:
@@ -217,10 +261,30 @@ async def update_redemption(redemption_id: int, **kwargs):
     fields = ", ".join(f"{k} = ?" for k in kwargs)
     values = list(kwargs.values()) + [redemption_id]
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(f"UPDATE redemptions SET {fields} WHERE redemption_id = ?", values)
+        await db.execute(
+            f"UPDATE redemptions SET {fields} WHERE redemption_id = ?",
+            values
+        )
         await db.commit()
 
-# ── CHANNEL FUNCTIONS ──────────────────────────────────────────
+
+async def get_pending_proof(user_id: int):
+    """Return the oldest redemption where max NW used but proof NOT yet submitted.
+    This is used to lock the user's next redemption until they submit proof."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            """SELECT * FROM redemptions
+               WHERE user_id = ?
+                 AND not_working_count >= ?
+                 AND proof_submitted = 0
+               ORDER BY redemption_id ASC LIMIT 1""",
+            (user_id, MAX_NOT_WORKING)
+        )
+        return await cursor.fetchone()
+
+
+# ── CHANNEL ─────────────────────────────────────────────────────
 
 async def add_channel(chat_id: str, name: str, link: str):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -230,18 +294,24 @@ async def add_channel(chat_id: str, name: str, link: str):
         )
         await db.commit()
 
+
 async def get_active_channels():
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute("SELECT * FROM channels WHERE is_active = 1")
         return await cursor.fetchall()
 
+
 async def remove_channel(channel_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE channels SET is_active = 0 WHERE channel_id = ?", (channel_id,))
+        await db.execute(
+            "UPDATE channels SET is_active = 0 WHERE channel_id = ?",
+            (channel_id,)
+        )
         await db.commit()
 
-# ── REDEEM CODE FUNCTIONS ──────────────────────────────────────
+
+# ── REDEEM CODES ────────────────────────────────────────────────
 
 async def create_redeem_code(code: str, points: int):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -250,6 +320,7 @@ async def create_redeem_code(code: str, points: int):
             (code, points)
         )
         await db.commit()
+
 
 async def get_redeem_code(code: str):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -260,6 +331,7 @@ async def get_redeem_code(code: str):
         )
         return await cursor.fetchone()
 
+
 async def use_redeem_code(code: str, user_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
@@ -267,6 +339,7 @@ async def use_redeem_code(code: str, user_id: int):
             (user_id, datetime.now().isoformat(), code.upper())
         )
         await db.commit()
+
 
 async def get_all_codes(limit: int = 50):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -277,14 +350,20 @@ async def get_all_codes(limit: int = 50):
         )
         return await cursor.fetchall()
 
+
 async def get_code_stats():
     async with aiosqlite.connect(DB_PATH) as db:
-        total = await (await db.execute("SELECT COUNT(*) FROM redeem_codes")).fetchone()
-        active = await (await db.execute("SELECT COUNT(*) FROM redeem_codes WHERE is_active = 1 AND used_by IS NULL")).fetchone()
-        used = await (await db.execute("SELECT COUNT(*) FROM redeem_codes WHERE used_by IS NOT NULL")).fetchone()
-        return {"total": total[0], "active": active[0], "used": used[0]}
+        total  = (await (await db.execute("SELECT COUNT(*) FROM redeem_codes")).fetchone())[0]
+        active = (await (await db.execute(
+            "SELECT COUNT(*) FROM redeem_codes WHERE is_active = 1 AND used_by IS NULL"
+        )).fetchone())[0]
+        used   = (await (await db.execute(
+            "SELECT COUNT(*) FROM redeem_codes WHERE used_by IS NOT NULL"
+        )).fetchone())[0]
+        return {"total": total, "active": active, "used": used}
 
-# ── STATS FUNCTIONS ──────────────────────────────────────────
+
+# ── STATS ───────────────────────────────────────────────────────
 
 async def get_bot_start_time():
     async with aiosqlite.connect(DB_PATH) as db:
@@ -292,14 +371,14 @@ async def get_bot_start_time():
         row = await cursor.fetchone()
         return row[0] if row else datetime.now().isoformat()
 
+
 async def get_total_users():
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("SELECT COUNT(*) FROM users")
-        row = await cursor.fetchone()
-        return row[0]
+        return (await cursor.fetchone())[0]
+
 
 async def get_banned_count():
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("SELECT COUNT(*) FROM users WHERE is_banned = 1")
-        row = await cursor.fetchone()
-        return row[0]
+        return (await cursor.fetchone())[0]

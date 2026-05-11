@@ -2,7 +2,7 @@ import asyncio
 import logging
 import sys
 
-from telegram import Update
+from telegram import Update, BotCommand
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -46,8 +46,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+BOT_COMMANDS = [
+    BotCommand("start",  "🎬 Start Netflix Kingdom / go to main menu"),
+    BotCommand("redeem", "🎟️ Redeem a bonus code for points"),
+    BotCommand("admin",  "⚙️ Open admin panel (admins only)"),
+]
+
+
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Route all private text messages."""
+    """Route all private text messages: proof → admin inputs → ignore."""
     if context.user_data.get("awaiting_proof"):
         await handle_proof_photo(update, context)
         return
@@ -56,18 +63,17 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def handle_photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle photos/documents sent as proof."""
+    """Handle photos / documents sent as proof."""
     if context.user_data.get("awaiting_proof"):
         await handle_proof_photo(update, context)
 
 
 async def handle_channel_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle files posted in DB channel."""
+    """Handle files posted in the DB channel."""
     await handle_db_channel_file(update, context)
 
 
 async def notify_me_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Placeholder: user wants to be notified when accounts are available."""
     query = update.callback_query
     await query.answer("🔔 You'll be notified when accounts become available!", show_alert=True)
 
@@ -75,22 +81,30 @@ async def notify_me_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def post_init(application: Application):
     await db.init_db()
     logger.info("✅ Database initialized")
+
+    # Register bot commands with Telegram (shows in the / menu)
+    try:
+        await application.bot.set_my_commands(BOT_COMMANDS)
+        logger.info("✅ Bot commands registered")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not set commands: {e}")
+
     logger.info("🎬 Netflix Kingdom Bot is LIVE!")
 
 
 def main():
     if not BOT_TOKEN:
-        logger.error("❌ BOT_TOKEN not set!")
+        logger.error("❌ BOT_TOKEN not set! Add it as a Replit Secret.")
         sys.exit(1)
 
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
 
-    # ── COMMANDS ─────────────────────────────────────────────────
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", admin_command))
+    # ── COMMANDS ──────────────────────────────────────────────────
+    app.add_handler(CommandHandler("start",  start))
+    app.add_handler(CommandHandler("admin",  admin_command))
     app.add_handler(CommandHandler("redeem", redeem_code_command))
 
-    # ── CALLBACK QUERIES ─────────────────────────────────────────
+    # ── CALLBACK QUERIES ──────────────────────────────────────────
 
     # Verification
     app.add_handler(CallbackQueryHandler(check_verify_callback, pattern="^check_verify$"))
@@ -113,7 +127,7 @@ def main():
     app.add_handler(CallbackQueryHandler(submit_proof_callback, pattern=r"^submit_proof_\d+$"))
     app.add_handler(CallbackQueryHandler(notify_me_callback,    pattern="^notify_me$"))
 
-    # Admin panel — main sections
+    # Admin panel
     app.add_handler(CallbackQueryHandler(admin_back_callback,            pattern="^admin_back$"))
     app.add_handler(CallbackQueryHandler(admin_close_callback,           pattern="^admin_close$"))
     app.add_handler(CallbackQueryHandler(admin_stats_callback,           pattern="^admin_stats$"))
@@ -137,27 +151,27 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_gen_codes_callback,  pattern="^admin_gen_codes$"))
     app.add_handler(CallbackQueryHandler(admin_view_codes_callback, pattern="^admin_view_codes$"))
 
-    # ── MESSAGE HANDLERS ─────────────────────────────────────────
+    # ── MESSAGE HANDLERS ──────────────────────────────────────────
 
-    # DB channel file uploads
+    # DB channel uploads
     app.add_handler(MessageHandler(
         filters.Document.ALL & filters.ChatType.CHANNEL,
         handle_channel_document
     ))
 
-    # Private text (admin inputs + proof)
+    # Private text (admin multi-step inputs + proof text fallback)
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE,
         handle_text_message
     ))
 
-    # Photos in private (proof)
+    # Private photos (proof screenshots)
     app.add_handler(MessageHandler(
         filters.PHOTO & filters.ChatType.PRIVATE,
         handle_photo_message
     ))
 
-    # Documents in private (proof as file)
+    # Private documents (proof as file, or anything else)
     app.add_handler(MessageHandler(
         filters.Document.ALL & filters.ChatType.PRIVATE,
         handle_photo_message
