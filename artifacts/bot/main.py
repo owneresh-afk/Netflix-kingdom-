@@ -35,6 +35,7 @@ from src.handlers.admin import (
     admin_close_callback, admin_back_callback, handle_admin_text,
     admin_codes_callback, admin_gen_codes_callback, admin_view_codes_callback,
     admin_validate_callback,
+    admin_clear_legacy_callback,
 )
 from src.handlers.db_channel import handle_db_channel_file
 from src.handlers.codes import redeem_code_command
@@ -236,8 +237,9 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_gen_codes_callback,  pattern="^admin_gen_codes$"))
     app.add_handler(CallbackQueryHandler(admin_view_codes_callback, pattern="^admin_view_codes$"))
 
-    # Admin — validate stock
-    app.add_handler(CallbackQueryHandler(admin_validate_callback,   pattern="^admin_validate$"))
+    # Admin — validate stock / clear legacy
+    app.add_handler(CallbackQueryHandler(admin_validate_callback,     pattern="^admin_validate$"))
+    app.add_handler(CallbackQueryHandler(admin_clear_legacy_callback, pattern="^admin_clear_legacy$"))
 
     # ── MESSAGE HANDLERS ──────────────────────────────────────────
 

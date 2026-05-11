@@ -258,6 +258,23 @@ async def get_all_available_accounts_for_validation():
         return await cursor.fetchall()
 
 
+async def trash_legacy_accounts() -> int:
+    """Trash all available accounts that have no message_id (pre-fix records).
+    Returns the count of accounts trashed."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            f"SELECT COUNT(*) FROM accounts WHERE {_EXPIRY_FILTER} AND message_id IS NULL"
+        )
+        row = await cursor.fetchone()
+        count = row[0] if row else 0
+        if count:
+            await db.execute(
+                f"UPDATE accounts SET is_trashed = 1 WHERE {_EXPIRY_FILTER} AND message_id IS NULL"
+            )
+            await db.commit()
+        return count
+
+
 async def bulk_trash_accounts(account_ids: list):
     """Mark multiple accounts as trashed in one DB round-trip."""
     if not account_ids:

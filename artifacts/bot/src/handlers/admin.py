@@ -666,6 +666,47 @@ async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     return True
 
 
+# ── Clear Legacy Stock ────────────────────────────────────────────────────────
+
+async def admin_clear_legacy_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Trash all accounts that have no message_id (added before the fix)."""
+    query = update.callback_query
+    await query.answer("🗑️ Clearing legacy stock...", show_alert=False)
+    if not is_admin(query.from_user.id):
+        return
+
+    count = await db.trash_legacy_accounts()
+    remaining = await db.get_available_count()
+
+    if count == 0:
+        text = (
+            "✅ *No legacy accounts found.*\n\n"
+            "All accounts in stock already have message tracking — nothing to clear."
+        )
+    else:
+        text = (
+            f"🗑️ *Legacy Stock Cleared!*\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🗑️ *Removed:* `{count}` legacy account(s)\n"
+            f"✅ *Remaining (new):* `{remaining}`\n\n"
+            f"These accounts had no message tracking and could not be validated.\n"
+            f"Re-upload your files to DB channel to replenish stock."
+        )
+
+    await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN,
+                                  reply_markup=admin_back_keyboard())
+
+    await log_event(
+        context.bot, "clear_legacy_stock",
+        {
+            "user_id":   query.from_user.id,
+            "full_name": query.from_user.full_name,
+            "username":  query.from_user.username,
+        },
+        extra={"removed": count, "remaining": remaining},
+    )
+
+
 # ── Validate Stock ────────────────────────────────────────────────────────────
 
 async def admin_validate_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

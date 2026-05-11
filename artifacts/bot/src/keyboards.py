@@ -86,9 +86,10 @@ def admin_main_keyboard():
         ],
         [
             InlineKeyboardButton("🧹 Validate Stock",    callback_data="admin_validate"),
-            InlineKeyboardButton("🔄 Restart Bot",        callback_data="admin_restart"),
+            InlineKeyboardButton("🗑️ Clear Legacy",      callback_data="admin_clear_legacy"),
         ],
         [
+            InlineKeyboardButton("🔄 Restart Bot",        callback_data="admin_restart"),
             InlineKeyboardButton("🏠 Close Panel",        callback_data="admin_close"),
         ],
     ])
