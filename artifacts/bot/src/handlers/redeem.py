@@ -53,27 +53,46 @@ PROOF_LOCK_TEXT = (
 )
 
 
+_FILE_ERRORS = (
+    "wrong file identifier", "file_id", "invalid file",
+    "file not found", "bad request: file", "failed to get",
+)
+_USER_ERRORS = (
+    "forbidden", "bot was blocked", "chat not found",
+    "user is deactivated", "have no rights",
+)
+
+
 async def _try_send_account(bot, user_id: int, max_attempts: int = 8):
-    """Send an account file, auto-trashing deleted/invalid file_ids, retrying up to max_attempts."""
+    """Send an account file, auto-trashing only bad file_ids, retrying up to max_attempts."""
     for _ in range(max_attempts):
         account = await db.get_available_account()
         if not account:
             return None
         try:
+            # No caption here — ACCOUNT_CAPTION is sent as a separate message after.
+            # Putting a MarkdownV1 caption here caused parse errors that silently
+            # trashed every valid account (underscore in filename breaks Markdown).
             await bot.send_document(
                 chat_id=user_id,
                 document=account["file_id"],
-                caption="📁 *Your Netflix Account Cookie* — `" + str(account.get("file_name", "cookie")) + "`",
-                parse_mode=ParseMode.MARKDOWN
             )
             return account
         except Exception as e:
-            await db.trash_account(account["account_id"])
-            await log_event(bot, "account_invalid", extra={
-                "account_id": account["account_id"],
-                "file_name":  account.get("file_name", "?"),
-                "reason":     str(e)[:100],
-            })
+            err = str(e).lower()
+            if any(x in err for x in _USER_ERRORS):
+                # User blocked/deactivated — file is fine, stop retrying
+                raise
+            if any(x in err for x in _FILE_ERRORS):
+                # Bad file_id — trash this account and try the next one
+                await db.trash_account(account["account_id"])
+                await log_event(bot, "account_invalid", extra={
+                    "account_id": account["account_id"],
+                    "file_name":  account.get("file_name", "?"),
+                    "reason":     str(e)[:100],
+                })
+                continue
+            # Any other Telegram error (rate limit, timeout, etc.) — don't trash, just retry
             continue
     return None
 
@@ -187,8 +206,12 @@ async def do_redeem_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             pass
         await asyncio.sleep(0.55)
 
-    # Try to send a valid account (auto-trashes deleted file_ids)
-    account = await _try_send_account(context.bot, user.id)
+    # Try to send a valid account (auto-trashes bad file_ids)
+    try:
+        account = await _try_send_account(context.bot, user.id)
+    except Exception:
+        # User-side error (blocked bot, deactivated, etc.) — nothing we can do
+        return
     if not account:
         await query.edit_message_text(
             "⚠️ *No valid accounts available right now.*\n\n"
