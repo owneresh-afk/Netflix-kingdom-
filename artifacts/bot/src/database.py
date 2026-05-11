@@ -78,6 +78,13 @@ async def init_db():
                 "INSERT INTO bot_stats (start_time) VALUES (?)",
                 (datetime.now().isoformat(),)
             )
+        # Migration: add message_id column if it doesn't exist yet
+        try:
+            await db.execute("ALTER TABLE accounts ADD COLUMN message_id INTEGER DEFAULT NULL")
+            await db.commit()
+        except Exception:
+            pass  # column already exists
+
         await db.commit()
 
 
@@ -164,11 +171,11 @@ async def reset_all_verifications():
 
 # ── ACCOUNT ─────────────────────────────────────────────────────
 
-async def add_account(file_id: str, file_name: str):
+async def add_account(file_id: str, file_name: str, message_id: int = None):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "INSERT INTO accounts (file_id, file_name) VALUES (?, ?)",
-            (file_id, file_name)
+            "INSERT INTO accounts (file_id, file_name, message_id) VALUES (?, ?, ?)",
+            (file_id, file_name, message_id)
         )
         await db.commit()
 
@@ -242,11 +249,11 @@ async def trash_account(account_id: int):
 
 
 async def get_all_available_accounts_for_validation():
-    """Return all available (non-trashed, non-given) account_id and file_id pairs."""
+    """Return all available (non-trashed, non-given) account_id, file_id, and message_id."""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            f"SELECT account_id, file_id FROM accounts WHERE {_EXPIRY_FILTER}"
+            f"SELECT account_id, file_id, message_id FROM accounts WHERE {_EXPIRY_FILTER}"
         )
         return await cursor.fetchall()
 

@@ -80,23 +80,37 @@ async def notify_me_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def validate_accounts_job(context: ContextTypes.DEFAULT_TYPE):
-    """Every 30 min: check every available file_id with Telegram and trash deleted ones."""
+    """Every 30 min: check if FILE_CHANNEL messages still exist; trash ones that were deleted."""
+    from src.config import FILE_CHANNEL_ID, DB_CHANNEL_ID
     try:
         accounts = await db.get_all_available_accounts_for_validation()
         if not accounts:
             return
         invalid_ids = []
         for acc in accounts:
-            try:
-                await context.bot.get_file(acc["file_id"])
-            except Exception as e:
-                err = str(e).lower()
-                if any(x in err for x in [
-                    "wrong file identifier", "file_id", "invalid",
-                    "not found", "bad request"
-                ]):
-                    invalid_ids.append(acc["account_id"])
-            await asyncio.sleep(0.1)
+            msg_id = acc["message_id"] if acc["message_id"] else None
+            is_invalid = False
+            if msg_id:
+                try:
+                    copied = await context.bot.copy_message(
+                        chat_id=DB_CHANNEL_ID,
+                        from_chat_id=FILE_CHANNEL_ID,
+                        message_id=msg_id,
+                    )
+                    try:
+                        await context.bot.delete_message(DB_CHANNEL_ID, copied.message_id)
+                    except Exception:
+                        pass
+                except Exception:
+                    is_invalid = True
+            else:
+                try:
+                    await context.bot.get_file(acc["file_id"])
+                except Exception:
+                    is_invalid = True
+            if is_invalid:
+                invalid_ids.append(acc["account_id"])
+            await asyncio.sleep(0.15)
         if invalid_ids:
             await db.bulk_trash_accounts(invalid_ids)
             from src.handlers.logger import log_event
@@ -106,7 +120,7 @@ async def validate_accounts_job(context: ContextTypes.DEFAULT_TYPE):
                 "remaining": await db.get_available_count(),
             })
         else:
-            logger.info("✅ Auto-validation: all file_ids valid")
+            logger.info("✅ Auto-validation: all messages still exist")
     except Exception as e:
         logger.warning(f"⚠️ Validation job error: {e}")
 

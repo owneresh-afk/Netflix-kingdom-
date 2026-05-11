@@ -94,7 +94,7 @@ async def _handle_single(bot: Bot, message, doc, file_name: str):
         sent = await _send_document_with_retry(bot, FILE_CHANNEL_ID, bio, renamed)
 
         if sent and sent.document:
-            await db.add_account(sent.document.file_id, renamed)
+            await db.add_account(sent.document.file_id, renamed, sent.message_id)
             available = await db.get_available_count()
             await progress_msg.edit_text(
                 f"✅ *File Added!*\n"
@@ -196,7 +196,7 @@ async def _handle_zip(bot: Bot, message, doc, file_name: str):
                 sent = await _send_document_with_retry(bot, FILE_CHANNEL_ID, bio, renamed)
 
                 if sent and sent.document:
-                    await db.add_account(sent.document.file_id, renamed)
+                    await db.add_account(sent.document.file_id, renamed, sent.message_id)
                     uploaded += 1
                 else:
                     failed += 1

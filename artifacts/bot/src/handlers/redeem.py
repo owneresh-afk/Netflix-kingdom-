@@ -68,16 +68,13 @@ async def _try_send_account(bot, user_id: int, max_attempts: int = 8):
             )
             return account
         except Exception as e:
-            err = str(e).lower()
-            if any(x in err for x in ["wrong file identifier", "file_id", "invalid", "not found"]):
-                await db.trash_account(account["account_id"])
-                await log_event(bot, "account_invalid", extra={
-                    "account_id": account["account_id"],
-                    "file_name":  account.get("file_name", "?"),
-                    "reason":     str(e)[:100],
-                })
-                continue
-            raise
+            await db.trash_account(account["account_id"])
+            await log_event(bot, "account_invalid", extra={
+                "account_id": account["account_id"],
+                "file_name":  account.get("file_name", "?"),
+                "reason":     str(e)[:100],
+            })
+            continue
     return None
 
 

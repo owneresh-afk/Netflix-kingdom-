@@ -711,20 +711,41 @@ async def admin_validate_callback(update: Update, context: ContextTypes.DEFAULT_
     await _update_progress(0, 0)
 
     import asyncio as _asyncio
+    from src.config import FILE_CHANNEL_ID, DB_CHANNEL_ID
     invalid_ids = []
     UPDATE_EVERY = max(1, total // 10)
 
     for i, acc in enumerate(accounts, 1):
-        try:
-            await context.bot.get_file(acc["file_id"])
-        except Exception as e:
-            err = str(e).lower()
-            if any(x in err for x in [
-                "wrong file identifier", "file_id", "invalid",
-                "not found", "bad request"
-            ]):
-                invalid_ids.append(acc["account_id"])
-        await _asyncio.sleep(0.1)
+        msg_id = acc["message_id"] if acc["message_id"] else None
+        is_invalid = False
+
+        if msg_id:
+            # Real check: try to copy the original message from FILE_CHANNEL.
+            # If the message was deleted, this raises an error.
+            try:
+                copied = await context.bot.copy_message(
+                    chat_id=DB_CHANNEL_ID,
+                    from_chat_id=FILE_CHANNEL_ID,
+                    message_id=msg_id,
+                )
+                # Message exists — clean up the copy immediately
+                try:
+                    await context.bot.delete_message(DB_CHANNEL_ID, copied.message_id)
+                except Exception:
+                    pass
+            except Exception:
+                is_invalid = True
+        else:
+            # Old record with no message_id — try send_document as the real test
+            try:
+                await context.bot.get_file(acc["file_id"])
+            except Exception:
+                is_invalid = True
+
+        if is_invalid:
+            invalid_ids.append(acc["account_id"])
+
+        await _asyncio.sleep(0.15)
 
         if i % UPDATE_EVERY == 0 or i == total:
             await _update_progress(i, len(invalid_ids))
