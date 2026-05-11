@@ -1,27 +1,25 @@
 import os
 
-# Bot Configuration
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 
 # Channel IDs
-LOG_CHANNEL_ID = -1003876529181
-DB_CHANNEL_ID = -1003882146982
-FILE_CHANNEL_ID = -1003988575440
-PROOF_CHANNEL_ID = -1003786015416
+LOG_CHANNEL_ID    = -1003876529181
+DB_CHANNEL_ID     = -1003882146982
+FILE_CHANNEL_ID   = -1003988575440
+PROOF_CHANNEL_ID  = -1003786015416
 
 # Admin IDs
 ADMIN_IDS = [8731647972]
 
-# Referral Configuration
-REFS_FOR_REWARD = 2  # Number of referrals needed to earn 1 Netflix account
-MAX_NOT_WORKING = 2  # Max "not working" reports per redemption
+# Reward config
+# 1 referral = 1 point.  POINTS_FOR_REWARD points = 1 Netflix account.
+POINTS_FOR_REWARD = 2
+MAX_NOT_WORKING   = 2      # max replacements per redemption
 
-# Bot Info
-BOT_NAME = "🎬 *NETFLIX KINGDOM*"
-BOT_USERNAME = "tnnetflixx_bot"
+# Bot info
+BOT_NAME     = "🎬 *NETFLIX KINGDOM*"
+BOT_USERNAME = "NetflixKingdomBot"
 
-# Database path
-DB_PATH = "data/netflix_kingdom.db"
-
-# Temp download path
+# Paths
+DB_PATH   = "data/netflix_kingdom.db"
 TEMP_PATH = "data/temp"
